@@ -1,0 +1,73 @@
+#TODOS
+    opendaylight
+    ml2 plugin with ovs drivers
+    plugin to opendaylight for hyperv
+
+#INFO LINKS
+    https://wiki.opendaylight.org/view/OpenDaylight_DLUX:DLUX_Karaf_Feature
+    https://www.opendaylight.org/sites/opendaylight/files/bk-developers-guide-20141002.pdf
+    https://openstack.redhat.com/OpenDaylight_integration
+    https://wiki.opendaylight.org/view/OVSDB:Helium_and_Openstack_on_Fedora20
+    http://www.pica8.com/document/v2.3/pdf/ovs-commands-reference.pdf
+    https://wiki.opendaylight.org/view/OVSDB:OVSDB_OpenStack_Guide
+
+#BUGS
+    #rdo juno 23/11/2014
+    #mongodb does not start with the provided conf from puppet. the old conf is good enough, and can replace the puppet rdo one
+    #needs more time to debug, probably is bad format or has inexistent options
+    yum install -y mongodb-server
+    cp /etc/mongodb.conf /etc/mongodb.conf.good
+    #while rdo
+    cp /etc/mongodb.conf.good /etc/mongodb.conf
+    systemctl restart mongod
+
+
+#CODE
+
+    #remove reject rules
+        iptables -D INPUT -j REJECT --reject-with icmp-host-prohibited
+        iptables -D FORWARD -j REJECT --reject-with icmp-host-prohibited
+
+    #karaf install
+        feature:install odl-base-all odl-aaa-authn odl-restconf odl-nsf-all odl-adsal-northbound odl-mdsal-apidocs odl-ovsdb-openstack odl-ovsdb-northbound odl-dlux-core
+        #then go to:  http://localhost:8181/dlux/index.html
+        #user/pass admin/admin
+
+    # add to /etc/neutron/plugins/ml2/ml2_conf.ini
+        [ml2_odl]
+        url=http://192.168.120.128:8080/controller/nb/v2/neutron
+        username=admin
+        password=admin
+
+        [odl]
+        nodes =
+        network_vlan_ranges = 100:200
+        tunnel_id_ranges = 100:200
+        tun_peer_patch_port = patch-int
+        int_peer_patch_port = patch-tun
+        tenant_network_type = vlan
+        tunnel_bridge = br-tun
+        integration_bridge = br-int
+        controllers = 192.168.80.128:8080:admin:admin
+
+    #set options with crudini
+        crudini --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 mechanism_drivers opendaylight
+        crudini --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 tenant_network_types vxlan
+        crudini --set /etc/neutron/plugins/ml2/ml2_conf.ini ml2 mechanism_drivers openvswitch
+
+    #set/unset controller
+        ovs-vsctl set-controller br-tun tcp:192.168.80.128:6633
+        ovs-vsctl set-controller br-tun
+    #set/unset manager
+        ovs-vsctl set-manager tcp:192.168.80.128:6640
+        ovs-vsctl set-manager ""
+
+#Quirks
+    #After you set the ovs manager ip, the bridges should automatically be set with the controller ip:port
+    #Make sure that the public interface(the third one) is properly configured and up
+
+
+
+setenforce 0
+sed -i -e 's/SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config
+
